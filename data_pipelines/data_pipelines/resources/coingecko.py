@@ -1,4 +1,5 @@
 from coingecko_sdk import Coingecko
+from dagster import ConfigurableResource
 from datetime import datetime, timedelta, timezone
 
 
