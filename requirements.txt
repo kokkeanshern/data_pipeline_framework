@@ -3,3 +3,4 @@ massive~=2.4.0
 requests~=2.33.0
 dagster~=1.12.21
 dagster-webserver~=1.12.21
+coingecko-sdk~=1.13.0
