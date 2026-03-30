@@ -4,3 +4,7 @@ requests~=2.33.0
 dagster~=1.12.21
 dagster-webserver~=1.12.21
 coingecko-sdk~=1.13.0
+pandas~=2.3.3
+polars~=1.39.3
+pyarrow~=23.0.1
+fastparquet~=2026.3.0
