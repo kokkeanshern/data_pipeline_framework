@@ -1,9 +1,13 @@
-from dagster import asset, AssetKey
-from data_pipelines.assets.config import date_partition_start_date, MASSIVE_TICKERS
-import json
 import os
-import pandas as pd
+import json
+import polars as pl
+from dagster import asset, AssetKey
 from datetime import datetime, timezone
+from data_pipelines.assets.config import (
+    date_partition_start_date,
+    MASSIVE_TICKERS,
+    SILVER_SCHEMA,
+)
 
 
 @asset(
@@ -15,6 +19,7 @@ from datetime import datetime, timezone
 )
 def silver_massive_prices(context):
     exec_date = datetime.strptime(context.partition_key, "%Y-%m-%d")
+    now = datetime.now(timezone.utc)
 
     all_records = []
     for ticker in MASSIVE_TICKERS:
@@ -43,7 +48,47 @@ def silver_massive_prices(context):
                         }
                     )
 
-    df = pd.DataFrame(all_records)
+    df = pl.DataFrame(all_records, schema=SILVER_SCHEMA)
     output_dir = f"data/silver/massive_prices/year={exec_date.year}/month={exec_date.month:02d}/day={exec_date.day:02d}"
     os.makedirs(output_dir, exist_ok=True)
-    df.to_parquet(f"{output_dir}/data.parquet", index=False)
+    df.write_parquet(f"{output_dir}/{now.strftime('%H%M%S')}.parquet")
+
+    return f"{output_dir}/{now.strftime('%H%M%S')}.parquet"
+
+
+@asset(partitions_def=date_partition_start_date)
+def silver_coingecko_prices(context, bronze_bitcoin):
+    path = bronze_bitcoin
+
+    with open(path) as f:
+        data = json.load(f)
+
+    exec_date = datetime.strptime(context.partition_key, "%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+
+    prices = {p[0]: p[1] for p in data["prices"]}
+    market_caps = {m[0]: m[1] for m in data["market_caps"]}
+    volumes = {v[0]: v[1] for v in data["total_volumes"]}
+
+    all_records = []
+    for ts in prices:
+        all_records.append(
+            {
+                "date": exec_date,
+                "open": None,
+                "high": None,
+                "low": None,
+                "close": prices[ts],
+                "volume": volumes.get(ts),
+                "market_cap": market_caps.get(ts),
+                "ticker": "BTC",
+                "source": "coingecko",
+            }
+        )
+
+    df = pl.DataFrame(all_records, schema=SILVER_SCHEMA)
+    output_dir = f"data/silver/coingecko_prices/year={exec_date.year}/month={exec_date.month:02d}/day={exec_date.day:02d}"
+    os.makedirs(output_dir, exist_ok=True)
+    df.write_parquet(f"{output_dir}/{now.strftime('%H%M%S')}.parquet")
+
+    return f"{output_dir}/{now.strftime('%H%M%S')}.parquet"
